@@ -1045,7 +1045,7 @@ footer .ft-mark {
 <!-- MASTHEAD -->
 <header class="masthead">
   <div class="mast-left">
-    <div><strong>Compiled</strong> 12 May 2026</div>
+    <div><strong>Compiled</strong> <span id="compiled-date">12 May 2026</span></div>
     <div>Forward window · 11 Jun → 19 Jul 2026</div>
     <div>Classification · Unrestricted</div>
   </div>
@@ -1069,15 +1069,15 @@ footer .ft-mark {
   </div>
   <div class="status-cell">
     <div class="status-label">World Cup Days Out</div>
-    <div class="status-value">30<span class="unit">days to opening</span></div>
+    <div class="status-value"><span id="cd-worldcup">30</span><span class="unit" id="cd-worldcup-label">days to opening</span></div>
   </div>
   <div class="status-cell">
     <div class="status-label">Army 250 Flyover</div>
-    <div class="status-value">33<span class="unit">days · DCA</span></div>
+    <div class="status-value"><span id="cd-army">33</span><span class="unit" id="cd-army-label">days · DCA</span></div>
   </div>
   <div class="status-cell">
     <div class="status-label">July 4 Peak</div>
-    <div class="status-value">53<span class="unit">days · saturation</span></div>
+    <div class="status-value"><span id="cd-july4">53</span><span class="unit" id="cd-july4-label">days · saturation</span></div>
   </div>
   <div class="status-cell">
     <div class="status-label">Confirmed TFRs</div>
@@ -1558,10 +1558,78 @@ footer .ft-mark {
 
 <footer>
   <span class="ft-mark">Continental Saturation · Summer 2026</span>
-  Compiled 12 May 2026 · Synthesis of FAA, NBAA, FIFA, DoD &amp; America250 public sources<br>
+  Compiled <span id="compiled-date-footer">12 May 2026</span> · Synthesis of FAA, NBAA, FIFA, DoD &amp; America250 public sources<br>
   Unrestricted · Forward window 11 Jun → 19 Jul 2026 · Re-verify against FNS NOTAM Search and NBAA TFR Impacts Page as event dates approach
 </footer>
 
+<script>
+/* ============================================================
+   DYNAMIC DATES & COUNTDOWNS
+   - Computes today, populates compile date and countdown cells
+   - Exposes window.__TODAY so the chart can use the same reference
+   ============================================================ */
+(function initDynamicDates() {
+  // Treat today as midnight UTC for stable date math
+  const now = new Date();
+  const TODAY = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+  window.__TODAY = TODAY;
+
+  // Anchor dates (UTC midnight)
+  const WC_OPENER  = new Date(Date.UTC(2026, 5, 11));   // 11 Jun 2026
+  const ARMY_250   = new Date(Date.UTC(2026, 5, 14));   // 14 Jun 2026
+  const JULY_4     = new Date(Date.UTC(2026, 6,  4));   // 4 Jul 2026
+  const WC_FINAL   = new Date(Date.UTC(2026, 6, 19));   // 19 Jul 2026
+
+  function daysBetween(a, b) {
+    return Math.round((b - a) / 86400000);
+  }
+
+  function formatCompiled(d) {
+    return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
+  }
+
+  // Populate compile date (masthead + footer)
+  const compiledStr = formatCompiled(TODAY);
+  const cd1 = document.getElementById('compiled-date');
+  const cd2 = document.getElementById('compiled-date-footer');
+  if (cd1) cd1.textContent = compiledStr;
+  if (cd2) cd2.textContent = compiledStr;
+
+  // Helper: set countdown cell with sensible past/future handling
+  function setCountdown(numId, labelId, targetDate, futureLabel, pastLabel, dayOfLabel) {
+    const numEl = document.getElementById(numId);
+    const lblEl = document.getElementById(labelId);
+    if (!numEl || !lblEl) return;
+    const days = daysBetween(TODAY, targetDate);
+    if (days > 0) {
+      numEl.textContent = days;
+      lblEl.textContent = futureLabel;
+    } else if (days === 0) {
+      numEl.textContent = 'Today';
+      lblEl.textContent = dayOfLabel;
+    } else {
+      numEl.textContent = Math.abs(days);
+      lblEl.textContent = pastLabel;
+    }
+  }
+
+  setCountdown('cd-worldcup', 'cd-worldcup-label', WC_OPENER,
+               'days to opening', 'days since opening', 'opening day');
+
+  setCountdown('cd-army', 'cd-army-label', ARMY_250,
+               'days · DCA', 'days since · DCA', 'today · DCA');
+
+  setCountdown('cd-july4', 'cd-july4-label', JULY_4,
+               'days · saturation', 'days post-peak', 'saturation today');
+
+  // Post-tournament: when World Cup is done, replace one cell with Final-relative info
+  if (daysBetween(TODAY, WC_FINAL) < 0) {
+    // Repurpose July 4 cell or add other logic if needed in future
+    // For now, the natural fall-through (days post-peak) is fine
+  }
+})();
+
+</script>
 <script>
 /* ============================================================
    OPEN-SOURCE NEWS FEED
@@ -1778,8 +1846,8 @@ loadAll();
    ============================================================ */
 
 const CHART = (() => {
-  // Pin "today" to the dashboard's compile date for stable rendering
-  const TODAY = new Date('2026-05-12T00:00:00Z');
+  // Use the dynamic "today" if available, otherwise fall back to compile date
+  const TODAY = window.__TODAY || new Date('2026-05-12T00:00:00Z');
   const DAYS_BACK = 30;
   const DAYS_FWD  = 60;
   const TOTAL_DAYS = DAYS_BACK + DAYS_FWD;
@@ -1922,7 +1990,8 @@ const CHART = (() => {
     // "Today" vertical line
     const todayX = x(DAYS_BACK);
     html += `<line class="vc-now-line" x1="${todayX}" y1="${M.top}" x2="${todayX}" y2="${M.top + innerH}"/>`;
-    html += `<text class="vc-now-label" x="${todayX + 5}" y="${M.top + 12}">Today · 12 May</text>`;
+    const todayLabel = TODAY.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+    html += `<text class="vc-now-label" x="${todayX + 5}" y="${M.top + 12}">Today · ${todayLabel}</text>`;
 
     // Key date annotations
     const events = [
